@@ -1,6 +1,6 @@
 {
   "name": "redis-based-weather-app",
-  "version": "2.0.0",
+  "version": "3.0.0",
   "description": "Weather app with an Express backend and a Redis caching layer",
   "main": "server.js",
   "scripts": {
