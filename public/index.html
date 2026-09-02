@@ -1,0 +1,51 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Weather</title>
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+  <main class="app">
+    <h1>Weather</h1>
+
+    <form id="search" class="search" autocomplete="off">
+      <input
+        id="city"
+        name="city"
+        type="text"
+        placeholder="Search for a city&hellip;"
+        aria-label="City name"
+        required
+      />
+      <button type="submit">Search</button>
+    </form>
+
+    <p id="status" class="status" role="status" aria-live="polite"></p>
+
+    <section id="result" class="result" hidden>
+      <header class="place">
+        <h2 id="place-name"></h2>
+        <p id="place-meta"></p>
+      </header>
+
+      <div class="current">
+        <p id="temp" class="temp"></p>
+        <p id="conditions" class="conditions"></p>
+        <dl class="details">
+          <div><dt>Humidity</dt><dd id="humidity"></dd></div>
+          <div><dt>Wind</dt><dd id="wind"></dd></div>
+        </dl>
+      </div>
+
+      <h3 class="forecast-heading">Next 5 days</h3>
+      <ul id="forecast" class="forecast"></ul>
+
+      <p id="cache-note" class="cache-note"></p>
+    </section>
+  </main>
+
+  <script src="script.js"></script>
+</body>
+</html>
