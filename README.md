@@ -431,3 +431,20 @@ A weather application developed to explore **API integration, backend developmen
 ---
 
 ⭐ If you found this project useful, consider giving the repository a star.
+
+## 🚀 CI/CD Pipeline & Multi-Stage Build
+
+Every push to `main` runs `.github/workflows/ci-cd.yml`:
+
+1. **build-and-test** – builds the `test` stage of the Dockerfile and runs the test suite inside the container.
+2. **push-image** – only if tests pass (and only on `main`): pushes `<DOCKER_USERNAME>/redis-weather-app:latest` and `:<commit-sha>` to Docker Hub.
+3. **deploy** – pulls the pushed image, runs it next to Redis, and smoke-tests `/api/health`.
+
+Add two repository secrets first (Settings → Secrets and variables → Actions): `DOCKER_USERNAME` and `DOCKER_TOKEN` (a Docker Hub personal access token with Read & Write).
+
+The Dockerfile is multi-stage: `deps` (production deps via `npm ci`), `test` (runs tests, never shipped) and `runtime` (clean `node:22-alpine` with only `node_modules`, `server.js`, `public/`). The runtime image is **62.2 MB**, compared with **411 MB** for the same app on the full `node:22` base.
+
+```bash
+npm test                                                     # run tests locally
+docker build --target test -t weather:test . && docker run --rm weather:test
+```

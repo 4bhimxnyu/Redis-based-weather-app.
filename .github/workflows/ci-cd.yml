@@ -1,0 +1,92 @@
+name: CI/CD Pipeline
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+env:
+  IMAGE_NAME: redis-weather-app
+
+jobs:
+  # Job 1: build the test stage and run the suite inside the container, so the
+  # tests run on exactly the dependencies the runtime image ships with.
+  build-and-test:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Build test image
+        run: docker build --target test -t $IMAGE_NAME:test-${{ github.sha }} .
+
+      - name: Run tests inside container
+        run: docker run --rm $IMAGE_NAME:test-${{ github.sha }}
+
+      - name: Build runtime image and report its size
+        run: |
+          docker build --target runtime -t $IMAGE_NAME:${{ github.sha }} .
+          docker image ls $IMAGE_NAME
+
+  # Job 2: only runs if the tests passed, and only for pushes to main - pull
+  # requests are tested but never published.
+  push-image:
+    needs: build-and-test
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Log in to Docker Hub
+        uses: docker/login-action@v3
+        with:
+          username: ${{ secrets.DOCKER_USERNAME }}
+          password: ${{ secrets.DOCKER_TOKEN }}
+
+      # Tagged twice: `latest` for convenience, the commit SHA so any running
+      # container can be traced back to the exact code it was built from.
+      - name: Build and push
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          target: runtime
+          push: true
+          tags: |
+            ${{ secrets.DOCKER_USERNAME }}/${{ env.IMAGE_NAME }}:latest
+            ${{ secrets.DOCKER_USERNAME }}/${{ env.IMAGE_NAME }}:${{ github.sha }}
+
+  # Job 3: pull the image that was just published, run it next to Redis the
+  # same way docker-compose does, and smoke test it.
+  deploy:
+    needs: push-image
+    runs-on: ubuntu-latest
+    steps:
+      - name: Pull and run latest image with Redis
+        run: |
+          docker network create weather-net
+          docker run -d --name redis --network weather-net redis:7-alpine
+          docker pull ${{ secrets.DOCKER_USERNAME }}/$IMAGE_NAME:${{ github.sha }}
+          docker run -d --name weather-app --network weather-net -p 3000:3000 \
+            -e REDIS_URL=redis://redis:6379 \
+            ${{ secrets.DOCKER_USERNAME }}/$IMAGE_NAME:${{ github.sha }}
+
+      # Waits for the app to report Redis as connected, so a broken cache
+      # connection fails the deploy instead of passing silently.
+      - name: Smoke test
+        run: |
+          for i in $(seq 1 15); do
+            body=$(curl -fs http://localhost:3000/api/health || true)
+            if echo "$body" | grep -q '"redis":"connected"'; then
+              echo "Healthy: $body"
+              exit 0
+            fi
+            sleep 2
+          done
+          echo "App never became healthy"
+          docker logs weather-app
+          exit 1

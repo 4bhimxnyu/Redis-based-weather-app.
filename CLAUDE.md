@@ -36,7 +36,7 @@ with an Express backend + Redis caching layer, containerized with Docker.
 
 ## Known MVP limitations (fair game to improve)
 - No rate limiting on `/api/weather`
-- No automated tests yet
+- Tests cover routes with Open-Meteo mocked; no tests against a live Redis yet
 - No input validation beyond "city is non-empty"
 - Cache TTL (600s) is hardcoded, not configurable via env var
 - No frontend build tooling (intentional, keeps it simple) — if this
@@ -46,3 +46,6 @@ with an Express backend + Redis caching layer, containerized with Docker.
 - `npm start` — run backend locally (needs Redis running separately)
 - `docker compose up --build` — run everything (app + redis) in containers
 - `docker compose down -v` — stop and wipe Redis cache volume
+- `npm test` — run the test suite (Node built-in runner, no Redis needed)
+- `docker build --target test -t weather:test . && docker run --rm weather:test` — run tests inside the container, as CI does
+- CI/CD: `.github/workflows/ci-cd.yml` (build+test -> push to Docker Hub -> deploy smoke test); needs `DOCKER_USERNAME` and `DOCKER_TOKEN` repo secrets
