@@ -71,9 +71,23 @@ async function cacheSet(key, value) {
   }
 }
 
+// The first connection out of a freshly started container can fail on a slow
+// or flaky network, so a network error (not an HTTP error) gets one retry.
+// The timeout stops a hung connection from holding the request open.
+async function fetchWithRetry(url, attempts = 2) {
+  for (let i = 1; ; i++) {
+    try {
+      return await fetch(url, { signal: AbortSignal.timeout(8000) });
+    } catch (err) {
+      if (i >= attempts) throw err;
+      console.error(`[weather] ${reason(err.cause || err)} - retrying`);
+    }
+  }
+}
+
 async function geocode(city) {
   const url = `${GEOCODE_URL}?name=${encodeURIComponent(city)}&count=1&language=en&format=json`;
-  const res = await fetch(url);
+  const res = await fetchWithRetry(url);
   if (!res.ok) throw new Error(`geocoding failed (${res.status})`);
   const body = await res.json();
   return body.results && body.results[0] ? body.results[0] : null;
@@ -88,7 +102,7 @@ async function forecast(latitude, longitude) {
     timezone: 'auto',
     forecast_days: '5',
   });
-  const res = await fetch(`${FORECAST_URL}?${params}`);
+  const res = await fetchWithRetry(`${FORECAST_URL}?${params}`);
   if (!res.ok) throw new Error(`forecast failed (${res.status})`);
   return res.json();
 }

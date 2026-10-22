@@ -74,3 +74,16 @@ test('returns 502 when the weather service fails', async () => {
   const res = await fetch(`${base}/api/weather?city=Pune`);
   assert.equal(res.status, 502);
 });
+
+test('retries once when the network drops on the first attempt', async () => {
+  let calls = 0;
+  mockUpstream((url) => {
+    calls += 1;
+    if (calls === 1) return Promise.reject(new TypeError('fetch failed'));
+    return url.includes('geocoding') ? json({ results: [PUNE] }) : json(FORECAST);
+  });
+
+  const res = await fetch(`${base}/api/weather?city=Pune`);
+  assert.equal(res.status, 200);
+  assert.equal(calls, 3); // failed geocode, retried geocode, forecast
+});
