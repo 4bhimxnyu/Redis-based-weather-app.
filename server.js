@@ -157,19 +157,29 @@ app.get('/api/health', (_req, res) => {
   res.json({ status: 'ok', redis: redis.isReady ? 'connected' : 'unavailable' });
 });
 
-// Only started when run directly (`node server.js`). Tests require() the app
-// and listen on their own port, without opening a Redis connection.
-if (require.main === module) {
-  // The HTTP server comes up first and the cache connects behind it. Awaiting
-  // connect() here would hang forever when Redis is down, because the reconnect
-  // strategy above retries instead of rejecting - and an unreachable cache must
-  // never stop the app from serving live data.
-  app.listen(PORT, () => console.log(`Listening on http://localhost:${PORT}`));
-
+// Awaiting connect() would hang forever when Redis is down, because the
+// reconnect strategy above retries instead of rejecting - and an unreachable
+// cache must never stop the app from serving live data.
+function connectCache() {
   redis
     .connect()
     .then(() => console.log(`Connected to Redis at ${REDIS_URL}`))
     .catch((err) => console.error(`Redis unavailable (${reason(err)}) - serving live data only.`));
 }
 
-module.exports = { app, redis };
+if (require.main === module) {
+  // Run directly (`node server.js`, Docker): the HTTP server comes up first
+  // and the cache connects behind it.
+  app.listen(PORT, () => console.log(`Listening on http://localhost:${PORT}`));
+  connectCache();
+} else if (process.env.VERCEL && process.env.REDIS_URL) {
+  // Imported by Vercel, which runs the exported app itself.
+  // Only connect when a cache is actually configured there; tests never take
+  // this branch, so they never open a connection.
+  connectCache();
+}
+
+// The app itself is the export, as Vercel expects; tests use the properties.
+module.exports = app;
+module.exports.app = app;
+module.exports.redis = redis;
